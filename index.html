@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nettoyage de plans DXF</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8ecef;--panel:#f7f9fa;--ink:#16232d;--mute:#586873;--line:#c5cfd6;--red:#c62828;--blue:#1d5c8a;--ok:#2e7d32;--grey:#9aa7b0;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11171c;--panel:#1a2229;--ink:#e6edf2;--mute:#93a3af;--line:#2d3a44;--red:#ef5350;--blue:#64b5f6;--ok:#81c784;--grey:#5b6b77;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#11171c;--panel:#1a2229;--ink:#e6edf2;--mute:#93a3af;--line:#2d3a44;--red:#ef5350;--blue:#64b5f6;--ok:#81c784;--grey:#5b6b77;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "IBM Plex Sans",system-ui,sans-serif}
+header{padding:22px clamp(16px,4vw,40px) 6px}
+h1{margin:0;font-size:clamp(22px,3.2vw,30px);font-weight:600;letter-spacing:-.01em}
+header p{margin:4px 0 0;color:var(--mute);max-width:70ch}
+main{display:grid;grid-template-columns:minmax(290px,350px) 1fr;gap:18px;padding:16px clamp(16px,4vw,40px) 40px}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+h2{margin:0 0 10px;font-size:16px;font-weight:600}
+.row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row label{display:flex;gap:8px;align-items:center}
+.row small{grid-column:1/-1;color:var(--mute);font-size:12px;min-height:0}
+input[type=number],input[type=text],select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 6px}
+input[type=number]{width:70px}
+input[type=text]{width:100%}
+.m{white-space:nowrap;color:var(--mute)}
+.opt{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:10px}
+.opt label{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.opt label.chk{justify-content:flex-start;align-items:flex-start}
+button{font:inherit;font-weight:500;border:1px solid var(--blue);background:var(--blue);color:#fff;border-radius:7px;padding:8px 14px;cursor:pointer}
+button.ghost{background:transparent;color:var(--blue)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+#drop{border:2px dashed var(--line);border-radius:10px;padding:18px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel)}
+#drop.on{border-color:var(--blue)}
+#drop span{flex:1 1 220px;color:var(--mute)}
+#list{margin:14px 0;display:grid;gap:6px}
+.f{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:9px 12px;background:var(--panel);border:1px solid var(--line);border-radius:8px;cursor:pointer;align-items:center}
+.f[aria-current=true]{border-color:var(--blue);box-shadow:inset 3px 0 0 var(--blue)}
+.f b{font-weight:500;overflow-wrap:anywhere}
+.f small{grid-column:1;color:var(--mute)}
+.f .bad{color:var(--red)}
+.views{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:700px){.views{grid-template-columns:1fr}}
+figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+figcaption{padding:8px 12px;font-weight:600;border-bottom:1px solid var(--line)}
+canvas{display:block;width:100%;height:min(60vh,460px)}
+.bar{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;align-items:center}
+.leg{color:var(--mute);font-size:13px}
+.leg i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin:0 4px 0 10px}
+</style>
+</head>
+<body>
+<header>
+<h1>Nettoyage de plans DXF</h1>
+<p>Déposez des fichiers ou un dossier. Les bornes sont recalées au centre des seguias, sentiers et chemins, et les lignes qui dépassent de la limite rouge sont coupées.</p>
+</header>
+<main>
+<aside class="panel">
+<h2>Types à traiter</h2>
+<div id="rows"></div>
+<div class="row"><label><input type="checkbox" id="cu"><span>Autre layer</span></label><span class="m"><input type="number" id="cm" min="0" step="0.1" value="1"> m</span><small><input type="text" id="cust" placeholder="Nom exact du layer"></small></div>
+<small class="leg">Le champ en mètres donne la longueur qu’une ligne peut garder au-delà de la limite rouge.</small>
+<div class="opt">
+<label class="chk"><input type="checkbox" id="align" checked><span>Ramener les bornes au centre de la seguia, du sentier ou du chemin</span></label>
+<label>Borne sur la limite si distance ≤ <span class="m"><input type="number" id="tol" min="0" step="0.01" value="0.05"> m</span></label>
+<label>Rayon de recherche du centre <span class="m"><input type="number" id="rad" min="0" step="0.5" value="3"> m</span></label>
+<label>Layer de la limite rouge <select id="redl"><option value="">Automatique</option></select></label>
+</div>
+</aside>
+<section>
+<div id="drop"><span>Déposez ici des fichiers .dxf</span><button id="bf">Choisir des fichiers</button><button id="bd" class="ghost">Choisir un dossier</button>
+<input type="file" id="fi" accept=".dxf" multiple hidden><input type="file" id="di" webkitdirectory multiple hidden></div>
+<div id="list"></div>
+<div class="views"><figure><figcaption>Avant</figcaption><canvas id="c1"></canvas></figure><figure><figcaption>Après</figcaption><canvas id="c2"></canvas></figure></div>
+<div class="bar"><button id="go" disabled>Nettoyer</button><button id="dl" class="ghost" disabled>Télécharger ce plan</button><button id="zip" class="ghost" disabled>Tout télécharger (ZIP)</button>
+<span class="leg"><i style="background:var(--red)"></i>Limite rouge<i style="background:var(--blue)"></i>Seguia, sentier, chemin<i style="background:var(--ink)"></i>Borne</span></div>
+</section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const $=q=>document.querySelector(q);
+const ROWS=[['Seguia naturelle ou bétonnée','seguia|saguia'],['Sentier','sentier'],['Chemin public (L.V)','chemin|route'],['Chemin de 3 m','piste|3m'],['Oued, chaaba','oued|chaaba']];
+const rowsEl=$('#rows');
+ROWS.forEach((r,i)=>rowsEl.insertAdjacentHTML('beforeend','<div class="row"><label><input type="checkbox" checked><span>'+r[0]+'</span></label><span class="m"><input type="number" min="0" step="0.1" value="1"> m</span><small></small></div>'));
+let files=[],sel=-1,timer;
+const fmt=x=>String(+x.toFixed(4));
+const dec=b=>{let s='';const u=new Uint8Array(b);for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return s};
+const enc=s=>{const u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;return u};
+function getS(){
+ const rows=[...rowsEl.children].map((d,i)=>({re:new RegExp(ROWS[i][1],'i'),on:d.querySelector('[type=checkbox]').checked,m:Math.max(0,+d.querySelector('[type=number]').value||0)}));
+ const c=$('#cust').value.trim();
+ if($('#cu').checked&&c)rows.push({re:new RegExp('^'+c.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'$','i'),on:true,m:Math.max(0,+$('#cm').value||0)});
+ return{rows,align:$('#align').checked,tol:+$('#tol').value||0.05,rad:+$('#rad').value||3,red:$('#redl').value};
+}
+function parse(text){
+ const nl=text.includes('\r\n')?'\r\n':'\n',L=text.split(/\r?\n/),T=[];
+ for(let i=0;i+1<L.length;i+=2)T.push({c:parseInt(L[i]),r:L[i],v:L[i+1]});
+ let a=-1,b=-1;
+ for(let i=0;i<T.length-1;i++){
+  if(T[i].c===0&&T[i].v.trim()==='SECTION'&&T[i+1].c===2&&T[i+1].v.trim()==='ENTITIES')a=i+2;
+  else if(a>=0&&i>=a&&T[i].c===0&&T[i].v.trim()==='ENDSEC'){b=i;break}
+ }
+ const ents=[];
+ if(a>=0&&b>=0){
+  let s=a;
+  while(s<b){
+   let e=s+1;while(e<b&&T[e].c!==0)e++;
+   const en={t:T[s].v.trim(),s,e,layer:'0',col:null,name:'',pts:[],closed:false};
+   let f70=false,last=null;
+   for(let k=s+1;k<e;k++){
+    const c=T[k].c,v=T[k].v;
+    if(c===8)en.layer=v.trim();
+    else if(c===62&&en.col===null)en.col=+v;
+    else if(c===2&&en.t==='INSERT')en.name=v.trim();
+    else if(c===70&&!f70){f70=true;en.closed=(+v&1)===1}
+    else if(c===10||c===11){
+     if(en.t==='LWPOLYLINE'||en.t==='INSERT'||en.t==='LINE'){last={x:+v,y:0,ix:k,iy:-1};en.pts.push(last)}
+    }else if(c===20||c===21){if(last&&last.iy<0&&en.t!=='MTEXT'&&en.t!=='TEXT'){last.y=+v;last.iy=k}}
+   }
+   if(en.t==='INSERT')en.pts=en.pts.slice(0,1);
+   if(en.t==='LINE')en.pts=en.pts.slice(0,2);
+   ents.push(en);s=e;
+  }
+ }
+ return{T,nl,a,b,ents};
+}
+const area=p=>Math.abs(p.reduce((s,q,i)=>{const n=p[(i+1)%p.length];return s+q.x*n.y-n.x*q.y},0))/2;
+function pickRed(ents,sl){
+ const c=ents.filter(e=>e.t==='LWPOLYLINE'&&e.closed&&e.pts.length>=3&&(sl?e.layer===sl:(e.col===1||/parcelle|limit/i.test(e.layer))));
+ return c.sort((a,b)=>area(b.pts)-area(a.pts))[0]||null;
+}
+const typeOf=(l,S)=>{const r=S.rows.find(r=>r.re.test(l));return r&&r.on?r:null};
+const isBorne=e=>e.t==='INSERT'&&(/born/i.test(e.layer)||/born/i.test(e.name));
+function dseg(p,a,b){
+ const dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy;
+ let t=l?((p[0]-a.x)*dx+(p[1]-a.y)*dy)/l:0;t=Math.max(0,Math.min(1,t));
+ const qx=a.x+dx*t,qy=a.y+dy*t;return{d:Math.hypot(p[0]-qx,p[1]-qy),q:[qx,qy]};
+}
+function near(p,pts,closed){
+ let best={d:1e18,q:null};const n=closed?pts.length:pts.length-1;
+ for(let i=0;i<n;i++){const r=dseg(p,pts[i],pts[(i+1)%pts.length]);if(r.d<best.d)best=r}
+ return best;
+}
+function inside(p,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){if((r[i].y>p[1])!==(r[j].y>p[1])&&p[0]<(r[j].x-r[i].x)*(p[1]-r[i].y)/(r[j].y-r[i].y)+r[i].x)c=!c}return c}
+const dRing=(p,r)=>inside(p,r)?0:near(p,r,true).d;
+function bis(a,b,ring,d){
+ let lo=a,hi=b;
+ for(let i=0;i<26;i++){const m={x:(lo.x+hi.x)/2,y:(lo.y+hi.y)/2};if(dRing([m.x,m.y],ring)<=d)lo=m;else hi=m}
+ return[lo.x,lo.y];
+}
+function trimRuns(pts,ring,d){
+ const S=[];
+ for(let i=0;i<pts.length-1;i++){
+  const a=pts[i],b=pts[i+1],n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y)/0.02));
+  for(let k=0;k<n;k++)S.push({x:a.x+(b.x-a.x)*k/n,y:a.y+(b.y-a.y)*k/n,v:k===0});
+ }
+ const l=pts[pts.length-1];S.push({x:l.x,y:l.y,v:true});
+ S.forEach(s=>s.k=dRing([s.x,s.y],ring)<=d+1e-9);
+ if(S.every(s=>s.k))return null;
+ const runs=[];let cur=null;
+ for(let i=0;i<S.length;i++){
+  const s=S[i];
+  if(s.k){
+   if(!cur){cur=[];if(i>0)cur.push(bis(S[i-1],s,ring,d))}
+   if(s.v)cur.push([s.x,s.y]);
+  }else if(cur){cur.push(bis(S[i-1],s,ring,d));runs.push(cur);cur=null}
+ }
+ if(cur)runs.push(cur);
+ return runs.map(r=>r.filter((p,i)=>!i||Math.hypot(p[0]-r[i-1][0],p[1]-r[i-1][1])>1e-6)).filter(r=>r.length>=2);
+}
+const tk=(c,v)=>({c,r:String(c),v});
+function process(text,S){
+ const P=parse(text),log=[],T=P.T;
+ const red=pickRed(P.ents,S.red);
+ if(!red)return{text,log:['Limite rouge introuvable'],err:true};
+ const feats=P.ents.filter(e=>((e.t==='LWPOLYLINE'&&!e.closed)||e.t==='LINE')&&e.pts.length>=2&&typeOf(e.layer,S));
+ let moved=0;
+ if(S.align){
+  for(const b of P.ents.filter(isBorne)){
+   const p0=b.pts[0],p=[p0.x,p0.y];
+   if(near(p,red.pts,true).d>S.tol)continue;
+   const c=feats.map(f=>near(p,f.pts,false)).filter(r=>r.d<=S.rad).sort((a,b)=>a.d-b.d);
+   if(!c.length)continue;
+   const tg=c.length>1?[(c[0].q[0]+c[1].q[0])/2,(c[0].q[1]+c[1].q[1])/2]:c[0].q;
+   red.pts.forEach(v=>{if(Math.hypot(v.x-p[0],v.y-p[1])<=S.tol){v.x=tg[0];v.y=tg[1];T[v.ix].v=fmt(tg[0]);T[v.iy].v=fmt(tg[1])}});
+   T[p0.ix].v=fmt(tg[0]);T[p0.iy].v=fmt(tg[1]);p0.x=tg[0];p0.y=tg[1];moved++;
+  }
+  log.push(moved+' borne(s) centrée(s)');
+ }
+ const rep=new Map(),extra=[];let cut=0,del=0;
+ for(const f of feats){
+  const r=typeOf(f.layer,S),runs=trimRuns(f.pts,red.pts,r.m);
+  if(!runs)continue;
+  if(!runs.length){rep.set(f.s,[]);del++;continue}
+  cut++;
+  if(f.t==='LINE'){
+   const run=runs.sort((a,b)=>b.length-a.length)[0],a=run[0],z=run[run.length-1];
+   T[f.pts[0].ix].v=fmt(a[0]);T[f.pts[0].iy].v=fmt(a[1]);T[f.pts[1].ix].v=fmt(z[0]);T[f.pts[1].iy].v=fmt(z[1]);continue;
+  }
+  const head=T.slice(f.s,f.pts[0].ix).map(t=>({...t})),tail=T.slice(f.pts[f.pts.length-1].iy+1,f.e).map(t=>({...t}));
+  const build=(run,keepHandle)=>{
+   const h=head.filter(t=>keepHandle||t.c!==5).map(t=>t.c===90?{...t,v:String(run.length)}:{...t});
+   const body=[];run.forEach(p=>{body.push(tk(10,fmt(p[0])),tk(20,fmt(p[1])))});
+   return h.concat(body,tail);
+  };
+  rep.set(f.s,build(runs[0],true));
+  runs.slice(1).forEach(run=>extra.push(...build(run,false)));
+ }
+ log.push(cut+' ligne(s) coupée(s)');if(del)log.push(del+' supprimée(s)');
+ const out=[];
+ for(let i=0;i<T.length;){
+  if(i===P.b)out.push(...extra);
+  const en=P.ents.find(e=>e.s===i);
+  if(rep.has(i)){out.push(...rep.get(i));i=en.e}else{out.push(T[i]);i++}
+ }
+ return{text:out.map(t=>t.r+P.nl+t.v).join(P.nl)+P.nl,log};
+}
+function bounds(P,S){
+ const red=pickRed(P.ents,S.red);
+ let pts=red?[...red.pts]:[];
+ P.ents.forEach(e=>{if(e.t==='INSERT'||e.t==='LWPOLYLINE'||e.t==='LINE')pts.push(...e.pts)});
+ if(!pts.length)return null;
+ const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
+ return{x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)};
+}
+function draw(cv,P,S,bx){
+ const W=cv.clientWidth,H=cv.clientHeight,dpr=devicePixelRatio||1;
+ cv.width=W*dpr;cv.height=H*dpr;
+ const g=cv.getContext('2d');g.scale(dpr,dpr);g.clearRect(0,0,W,H);
+ const cs=getComputedStyle(document.documentElement),C=n=>cs.getPropertyValue(n).trim();
+ if(!bx||!P)return;
+ const m=24,k=Math.min((W-2*m)/Math.max(bx.x1-bx.x0,1),(H-2*m)/Math.max(bx.y1-bx.y0,1));
+ const X=x=>m+(x-bx.x0)*k+((W-2*m)-(bx.x1-bx.x0)*k)/2,Y=y=>H-m-(y-bx.y0)*k-((H-2*m)-(bx.y1-bx.y0)*k)/2;
+ const line=(pts,closed,col,w)=>{g.beginPath();pts.forEach((p,i)=>i?g.lineTo(X(p.x),Y(p.y)):g.moveTo(X(p.x),Y(p.y)));if(closed)g.closePath();g.strokeStyle=col;g.lineWidth=w;g.stroke()};
+ const red=pickRed(P.ents,S.red);
+ P.ents.forEach(e=>{
+  if(e===red||!(e.t==='LWPOLYLINE'||e.t==='LINE'))return;
+  line(e.pts,e.closed,typeOf(e.layer,S)?C('--blue'):C('--grey'),typeOf(e.layer,S)?2:1);
+ });
+ if(red)line(red.pts,true,C('--red'),2);
+ P.ents.filter(isBorne).forEach(b=>{g.beginPath();g.arc(X(b.pts[0].x),Y(b.pts[0].y),4,0,7);g.fillStyle=C('--ink');g.fill();g.strokeStyle=C('--panel');g.lineWidth=1.5;g.stroke()});
+}
+function render(){
+ const S=getS(),f=files[sel];
+ $('#list').innerHTML=files.map((x,i)=>'<div class="f" data-i="'+i+'" aria-current="'+(i===sel)+'"><b>'+x.name.replace(/</g,'&lt;')+'</b><small class="'+(x.err?'bad':'')+'">'+x.log.join(' · ')+'</small></div>').join('');
+ $('#go').disabled=!files.length;$('#dl').disabled=!f||!f.done||f.err;$('#zip').disabled=!files.some(x=>x.done&&!x.err);
+ if(!f){draw($('#c1'));draw($('#c2'));return}
+ const A=parse(f.text),bx=bounds(A,S);
+ draw($('#c1'),A,S,bx);draw($('#c2'),f.done?parse(f.out):null,S,bx);
+}
+function cleanAll(){
+ const S=getS();
+ files.forEach(f=>{try{const r=process(f.text,S);f.out=r.text;f.log=r.log;f.err=!!r.err;f.done=true}catch(e){f.out=f.text;f.log=['Erreur de lecture : '+e.message];f.err=true;f.done=true}});
+ render();
+}
+function runAll(){
+ files.forEach(f=>{if(!f.done){f.out=f.text;f.err=false;f.log=['Importé tel quel, pas encore nettoyé']}});
+ const layers=new Set();
+ files.forEach(f=>parse(f.text).ents.forEach(e=>{if(e.t==='LWPOLYLINE'&&e.closed)layers.add(e.layer)}));
+ const cur=$('#redl').value;
+ $('#redl').innerHTML='<option value="">Automatique</option>'+[...layers].map(l=>'<option'+(l===cur?' selected':'')+'>'+l+'</option>').join('');
+ [...rowsEl.children].forEach((d,i)=>{
+  const re=new RegExp(ROWS[i][1],'i'),n=files.reduce((s,f)=>s+parse(f.text).ents.filter(e=>(e.t==='LWPOLYLINE'||e.t==='LINE')&&re.test(e.layer)).length,0);
+  d.querySelector('small').textContent=files.length?(n?n+' ligne(s) trouvée(s)':'Aucune ligne dans les plans chargés'):'';
+ });
+ if(sel<0&&files.length)sel=0;
+ render();
+}
+async function add(list){
+ for(const fl of [...list].filter(f=>/\.dxf$/i.test(f.name))){
+  files.push({name:fl.webkitRelativePath||fl.name,text:dec(await fl.arrayBuffer())});
+ }
+ runAll();
+}
+const later=()=>{clearTimeout(timer);timer=setTimeout(()=>{files.forEach(f=>{f.done=false});runAll()},250)};
+document.querySelectorAll('aside input,aside select').forEach(i=>i.addEventListener('input',later));
+$('#go').onclick=cleanAll;$('#bf').onclick=()=>$('#fi').click();$('#bd').onclick=()=>$('#di').click();
+$('#fi').onchange=e=>{add(e.target.files);e.target.value=''};
+$('#di').onchange=e=>{add(e.target.files);e.target.value=''};
+const dz=$('#drop');
+['dragover','dragenter'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.add('on')}));
+['dragleave','drop'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.remove('on')}));
+dz.addEventListener('drop',e=>add(e.dataTransfer.files));
+$('#list').onclick=e=>{const d=e.target.closest('.f');if(d){sel=+d.dataset.i;render()}};
+const save=(blob,name)=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)};
+const clean=n=>n.split('/').pop().replace(/\.dxf$/i,'')+'_nettoye.dxf';
+$('#dl').onclick=()=>{const f=files[sel];if(f)save(new Blob([enc(f.out)]),clean(f.name))};
+$('#zip').onclick=async()=>{const z=new JSZip();files.filter(f=>f.done&&!f.err).forEach(f=>z.file(f.name.replace(/\.dxf$/i,'')+'_nettoye.dxf',enc(f.out)));save(await z.generateAsync({type:'blob'}),'plans_nettoyes.zip')};
+addEventListener('resize',()=>render());
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',render);
+render();
+</script>
+</body>
+</html>
